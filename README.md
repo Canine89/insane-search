@@ -2,9 +2,11 @@ English | [한국어](README.ko.md)
 
 # insane-search
 
-> **Auto-bypass for blocked websites in Claude Code — no API keys, no signup, no setup.**
+> **The scraper that's too stubborn to quit.**
 
-Turn Claude Code from a tool that gives up on 403/WAF walls into one that tries every method until something works.
+403. WAF. CAPTCHA. Empty SPA. Login wall. When every normal tool taps out, insane-search is just getting started. Five probe phases. Auto-installs TLS impersonation. Discovers hidden APIs through a real browser. Tries everything — and for every site that claimed to be "blocked," something always works.
+
+No API keys. No signup. No config. Install, and watch Claude Code stop giving up.
 
 [Quick Start](#quick-start) • [How it works](#how-it-works) • [What's in the index](#whats-in-the-index) • [References](#references) • [Requirements](#requirements)
 
@@ -44,11 +46,11 @@ Just talk normally. Blocked sites will be unblocked automatically.
 
 ## Why insane-search?
 
-- **No signup, no keys, no OAuth** — Everything uses public endpoints, URL transformations, or auto-installable libraries
-- **Doesn't give up** — If one method fails, it tries the next. Auto-installs dependencies (`curl_cffi`, `feedparser`) when needed
-- **No bias** — No "this site is blocked" labels to discourage attempts. Every method gets tried
-- **Self-discovering** — Generic probe chain finds working access patterns without per-site configuration
-- **Minimal index** — Only special endpoints that can't be discovered generically (Twitter Syndication, yt-dlp, HN Firebase, etc.) are indexed. Everything else flows through the adaptive scheduler
+- **It doesn't know the word "blocked"** — No pre-judged "this site can't be accessed" labels. Every site gets the full chain. Coupang? Coupang falls. LinkedIn? JSON-LD extracted. Yozm? Chrome UA and done
+- **Installs its own weapons** — Missing `curl_cffi` for TLS fingerprint bypass? Installs it. Missing `feedparser`? Installs it. Missing `yt-dlp`? Installs it. You don't even notice
+- **5 probe phases, not 1** — WebFetch → Jina → curl UA/URL variants → TLS impersonation (safari/chrome/firefox) → real browser. Each phase escalates only when the previous hits a wall
+- **Finds hidden APIs** — Phase 3 doesn't just render the page. It watches the browser's network traffic, catches the actual JSON API the site uses internally, and hands it back for reuse
+- **Zero setup friction** — No API keys, no OAuth, no developer portals. Everything runs on public endpoints and auto-installable libraries
 
 ---
 
@@ -210,6 +212,6 @@ MIT
 
 <div align="center">
 
-**If the site is on the web, insane-search will find a way in.**
+**If it's on the web, insane-search is getting in.**
 
 </div>
