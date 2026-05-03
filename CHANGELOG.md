@@ -2,6 +2,22 @@
 
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] — 2026-05-04
+
+### Changed
+- SKILL.md R7 (WAF 조기 감지 시 API-first 병행 분기) — 분기 결정은 자동이지만 사용자가 결과 metadata에서 확인 가능. 어떤 우회 경로로 성공/실패했는지 명시
+
+### Preserved (R1-R7 모두 보존)
+- R1: WebFetch / 즉흥 curl 금지
+- R2: 첫 200에서 탈출 금지 (4-계층 검증)
+- **R3: No-Site-Name Rule** (bias_check.py CI 게이트) — fossil-방지 메타-패턴
+- R4: 사이트 고유 정보는 CLI/user_hint로만
+- R5: Phase 0 공식 API 우선
+- R6: 격자 모두 돌린 뒤 "뚫을 수 없음" 결론
+- R7: 병행 분기
+
+→ insane-search는 4 진단 대상 중 fossil 의문이 가장 적게 검증된 케이스. R3 + bias_check.py는 다른 fossil-위험 플러그인에 차용 가능한 메타-패턴.
+
 ## [0.4.0] — 2026-04-22
 
 ### Added
