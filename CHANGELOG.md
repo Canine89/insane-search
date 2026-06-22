@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 — 2026-06-22
+
+Harness enforcement — the engine now *makes* itself try every route instead of relying on the agent to remember to. (Motivated by a live failure: `.json`/syndication 403/429'd, the agent declared Reddit/X "blocked", and nobody tried `.rss`/oEmbed.)
+
+- **Phase 0 official-API router** (`engine/phase0.py`, new): `fetch()` now detects recognised platforms by URL and tries the official no-auth endpoint **before** the generic grid — Reddit→`.rss` (then `.json` via curl_cffi), X tweet→`cdn.syndication tweet-result` + `publish oembed`, X profile→`syndication-timeline` (retry), YouTube→`yt-dlp`. This is the *enforced* version of the old agent-driven SKILL snippets, so the route can no longer be skipped. Trace records each as `phase=phase0`; recognised-but-failed falls through to the grid (never gives up early). New `enable_phase0` param + `--no-phase0`. `phase0.py` is the single bias-check-exempt engine file (R5 sanctioned exception).
+- **Failure gate** (`fetch_chain.py`, `__main__.py`): on `ok=False`, `FetchResult` now carries `untried_routes[]` and `must_invoke_playwright_mcp`. A terminal wall (404/auth/paywall) returns them empty; **429 is treated as transient** (back off + retry, not a wall); any other give-up names what's left — re-run exhaustive if the grid was budget-cut, and (always, for gated pages) drive Playwright **MCP from the agent session**, which the engine structurally cannot do itself. The CLI prints a `⛔ NOT EXHAUSTED (R6)` block to stderr. SKILL **R6** rewritten as a 4-point blocking checklist that consumes these fields. CLI `--max-attempts` now defaults to exhaustive.
+- **Coverage battery** (`tests/coverage_battery.py`, new): hits each platform through ALL candidate routes and reports PASS/FAIL per route, so "did we actually try everything?" is an evidence artifact and a rotted example (was PASS, now FAIL) is caught. Current run: 6/7 reachable (reddit `.rss`, x tweet-result+oembed, youtube, hn, arxiv, naver); flags the stale `reddit json+iPhoneUA` SKILL example.
+- **bias_check hardening** (`bias_check.py`): `engine/tests/**` excluded (fixtures legitimately use concrete hosts/IPs), `phase0.py` explicitly allow-listed, `safety.py` metadata-IP comment marked `NOTE-BIAS-OK`. Default scan is clean again.
+- Quick-reference + engine-file guide updated: lead with `python3 -m engine <URL>` (Phase 0 is automatic); manual snippets marked debug-only with the verified working routes.
+
 ## 0.6.0 — 2026-06-22
 
 Engine overhaul — multi-AI reviewed (GPT-5.5 Pro + council) and effect-tested before shipping.

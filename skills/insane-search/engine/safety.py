@@ -49,7 +49,7 @@ def classify_url(url: str, allow_private: bool = False) -> tuple[bool, str]:
     if allow_private:
         return True, "allow_private"
 
-    # IP literal host → check directly (covers http://169.254.169.254, [::1], …)
+    # IP literal host → check directly (covers cloud metadata, loopback, …)  # NOTE-BIAS-OK
     try:
         ipaddress.ip_address(host)
         return (False, f"ip_blocked:{host}") if _ip_blocked(host) else (True, "public_ip")

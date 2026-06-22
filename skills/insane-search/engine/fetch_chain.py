@@ -94,6 +94,10 @@ class FetchResult:
     executed_attempts: int = 0
     grid_exhausted: bool = False
     stop_reason: str = ""            # success | exhausted | budget | <terminal verdict> | error
+    # Failure gate (R6): when ok=False these tell the caller it is NOT finished —
+    # which escalation routes the engine could not perform itself remain to try.
+    untried_routes: list[str] = field(default_factory=list)
+    must_invoke_playwright_mcp: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -108,6 +112,8 @@ class FetchResult:
             "executed_attempts": self.executed_attempts,
             "grid_exhausted": self.grid_exhausted,
             "stop_reason": self.stop_reason,
+            "untried_routes": self.untried_routes,
+            "must_invoke_playwright_mcp": self.must_invoke_playwright_mcp,
         }
 
 
@@ -287,6 +293,7 @@ def fetch(
     max_attempts: Optional[int] = None,   # None = exhaustive (R6); int = budget
     max_browser_attempts: int = 2,
     enable_playwright: bool = True,
+    enable_phase0: bool = True,
 ) -> FetchResult:
     """Fetch `url` using the generic diversity grid.
 
@@ -319,6 +326,42 @@ def fetch(
             url_transform="original", impersonate=None, referer="",
             verdict=Verdict.UNKNOWN.value, error=f"profiles_fallback: {load_err}",
         ))
+
+    # -------- Phase 0: official public-API router (R5; site-aware, sanctioned) --
+    # For recognised platforms (Reddit/X/YouTube/...) try the official no-auth
+    # endpoint BEFORE the generic grid. This is the *enforced* version of the
+    # old agent-driven SKILL snippets — the agent can no longer skip it, which
+    # is what made Reddit/X look "blocked" (grid 403'd .json; nobody tried .rss).
+    if enable_phase0:
+        try:
+            from .phase0 import route as _phase0_route
+            p0 = _phase0_route(url, timeout=timeout)
+        except Exception as e:  # router must never break the generic chain
+            p0 = None
+            trace.append(Attempt(
+                phase="phase0", executor="phase0", url=url, url_transform="original",
+                impersonate=None, referer="", verdict=Verdict.UNKNOWN.value,
+                error=f"{type(e).__name__}:{str(e)[:120]}",
+            ))
+        if p0 is not None:
+            for a in p0["attempts"]:
+                trace.append(Attempt(
+                    phase="phase0", executor=a["route"], url=url, url_transform="-",
+                    impersonate=None, referer="",
+                    status=a.get("status", 0), body_size=a.get("bytes", 0),
+                    verdict=(Verdict.STRONG_OK.value if a["ok"] else Verdict.BLOCKED.value),
+                    reasons=[a["note"]] if a.get("note") else [],
+                ))
+            if p0["ok"]:
+                return FetchResult(
+                    ok=True, content=p0["content"], final_url=p0["final_url"],
+                    verdict=Verdict.STRONG_OK.value,
+                    profile_used=f"phase0:{p0['platform']}", trace=trace,
+                    summary=f"Phase 0 official route: {p0['platform']}:{p0['route']}",
+                    stop_reason="success",
+                )
+            # Recognised platform but every official route failed → fall through
+            # to the generic grid (don't give up; R6).
 
     # -------- Phase 1: probe -------------------------------------------------
     base_impersonate = user_hint.get("impersonate_first") or (
@@ -449,9 +492,46 @@ def fetch(
                     grid_exhausted=grid_exhausted, stop_reason=stop_reason or "exhausted")
 
 
+def _untried_routes(stop_reason, grid_exhausted) -> tuple[list[str], bool]:
+    """Failure gate (R6): name the escalation routes the engine itself could not
+    perform, so the caller never mistakes give-up for "everything was tried".
+
+    Returns (untried_routes, must_invoke_playwright_mcp).
+    """
+    routes: list[str] = []
+    # 429 is TRANSIENT, not a wall — exclude it from terminal so the gate still
+    # surfaces backoff/MCP instead of telling the agent to give up (the exact
+    # premature-failure this hardening exists to prevent).
+    rate_limited = stop_reason == Verdict.RATE_LIMITED.value
+    # Terminal non-success (404 / auth / paywall) → a real wall; nothing else helps.
+    terminal = stop_reason in _TERMINAL_NONSUCCESS_VALUES and not rate_limited
+    if terminal:
+        return routes, False
+
+    if rate_limited:
+        routes.append("rate-limited (429) — transient: back off a few seconds then retry; a different TLS family or Playwright MCP often clears it. Do NOT hammer the grid.")
+    # Budget cut → the curl grid itself was not finished (skip for 429: don't hammer).
+    elif stop_reason == "budget" or not grid_exhausted:
+        routes.append("generic-grid: NOT exhausted — re-run fetch() with max_attempts=None")
+
+    # A gated page that survived the curl grid → the real browser is the next
+    # escalation, and Playwright MCP must be driven from the AGENT session
+    # (the engine can only spawn local Node Chrome, which Cloudflare-class
+    # challenges often detect). So MCP is, by construction, an untried route here.
+    must_mcp = True
+    routes.append(
+        "playwright_mcp (run from the agent session): browser_navigate → "
+        "browser_network_requests → catch /api,/graphql,*.json internal endpoint → "
+        "re-fetch that API URL with `python3 -m engine`; or browser_snapshot for rendered HTML"
+    )
+    routes.append("user_hint retry: fetch(url, user_hint={'impersonate_first': 'safari_ios'|'chrome', 'referer_strategy': 'none'}) and/or device_class='mobile'")
+    return routes, must_mcp
+
+
 def _give_up(trace, profile_used, last_resp, last_attempt, best_suspect,
              *, planned, executed, grid_exhausted, stop_reason) -> FetchResult:
     """Return the most honest failure result, preferring suspect content."""
+    untried, must_mcp = _untried_routes(stop_reason, grid_exhausted)
     if best_suspect is not None:
         s_resp, s_att = best_suspect
         content = getattr(s_resp, "text", "") if s_resp is not None else ""
@@ -462,6 +542,7 @@ def _give_up(trace, profile_used, last_resp, last_attempt, best_suspect,
             summary=_format_summary(trace, profile_used, stop_reason),
             planned_attempts=planned, executed_attempts=executed,
             grid_exhausted=grid_exhausted, stop_reason=stop_reason,
+            untried_routes=untried, must_invoke_playwright_mcp=must_mcp,
         )
     return FetchResult(
         ok=False,
@@ -472,6 +553,7 @@ def _give_up(trace, profile_used, last_resp, last_attempt, best_suspect,
         summary=_format_summary(trace, profile_used, stop_reason),
         planned_attempts=planned, executed_attempts=executed,
         grid_exhausted=grid_exhausted, stop_reason=stop_reason,
+        untried_routes=untried, must_invoke_playwright_mcp=must_mcp,
     )
 
 

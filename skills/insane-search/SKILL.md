@@ -50,7 +50,13 @@ If the output is empty, just continue silently. (AskUserQuestion must NOT be in 
 
 **R5 — Phase 0 공식 API 우선**: X/Reddit/YouTube/HN/arXiv 등 **공식 공개 엔드포인트**가 있는 플랫폼은 Phase 0 테이블을 먼저 확인하고 해당 API를 쓴다. 이건 편향이 아니라 합의된 접근 경로.
 
-**R6 — 실패 선언은 전수 시도 후에만**: 격자(URL 변환 × TLS impersonate × Referer × Playwright fallback)를 **모두** 돌린 뒤에만 "뚫을 수 없음" 결론. CLI의 `max_attempts` 기본 12가 이를 보장.
+**R6 — 실패 선언은 "전수 시도" 후에만 (engine이 강제하는 실패 게이트)**: engine은 실패 시 `ok=false`와 함께 **아직 안 해본 경로**(`untried_routes`)와 `must_invoke_playwright_mcp` 플래그를 반환한다. 아래가 **모두** 충족되기 전엔 "뚫을 수 없음" 결론 **금지**:
+1. `grid_exhausted=true` — false면 `fetch(max_attempts=None)`(=CLI 기본, exhaustive)로 끝까지 재호출.
+2. `untried_routes`가 **빈 배열** — 비어있지 않으면 그 경로들을 먼저 실행.
+3. `must_invoke_playwright_mcp=false` — true면 **Claude가 세션에서 직접** MCP Playwright를 돌린 뒤에만 통과: `browser_navigate` → `browser_network_requests`로 내부 `/api`·`/graphql`·`.json` 엔드포인트 탐지 → 그 URL을 `python3 -m engine`로 재호출(API는 WAF가 얕음); 또는 `browser_snapshot`으로 렌더된 HTML 회수. (engine은 로컬 Node Chrome만 띄울 수 있고 MCP는 못 돌리므로, MCP는 **구조적으로** 에이전트의 몫이다.)
+4. `stop_reason`이 `auth_required`/`404`/paywall 등 **terminal**일 때만 정직하게 실패 인정 — engine이 `untried_routes`를 **빈 채로** 돌려준다. **429(rate-limit)는 terminal 아님** — 백오프 후 재시도/다른 TLS/MCP로 우회.
+
+요지: **engine의 give-up은 "그만해도 된다"는 허가가 아니다.** CLI는 실패 시 `⛔ NOT EXHAUSTED` 블록을 stderr로 출력한다 — 그게 보이면 위 4개를 끝낼 때까지 멈추지 않는다.
 단, R7 조건(WAF 조기 감지)이 성립하면 engine 격자는 계속 돌되, Claude가 **병렬로** MCP 정찰 루트를 시도할 수 있다. 빠른 쪽이 이긴다.
 
 **R7 — WAF 조기 감지 시 API-first 병행 분기** (분기 결정은 자동이지만 사용자가 결과에서 확인 가능 — 어떤 우회 경로로 성공/실패했는지 결과 metadata에 명시):
@@ -248,26 +254,36 @@ npx playwright install chrome
 
 ## 빠른 참조 — Phase 0 명령어
 
+> **먼저 이걸 기억하라: Reddit/X/YouTube는 이제 engine이 자동 처리한다.**
+> `python3 -m engine "<URL>"` 하나면 Phase 0 라우터(`engine/phase0.py`)가 **격자보다 먼저** 공식 경로를 시도한다 —
+> Reddit→`.rss`, X 트윗→`tweet-result`/oEmbed, X 프로필→syndication, YouTube→`yt-dlp`.
+> 아래 수동 스니펫은 디버그/참조용이며 trace에 `phase=phase0`로 기록된다.
+> (실측 주의: Reddit `.json`+모바일UA·`syndication-timeline`은 흔히 403/429라 plain `curl`은 신뢰 불가 — engine이 curl_cffi 지문으로 우회한다.)
+
 ```bash
+# ★ 거의 모든 경우 이거면 됨 (Phase 0 자동 + 실패 시 격자→Playwright 에스컬레이션)
+python3 -m engine "<URL>"
+
 # 범용 웹 (Jina Reader — 일반 HTML만, WAF 사이트엔 무효)
 curl -s "https://r.jina.ai/{URL}"
 
-# yt-dlp — 1,858 사이트 미디어 메타데이터
+# yt-dlp — 1,858 사이트 미디어 메타데이터 / 자막
 yt-dlp --dump-json "URL"
+yt-dlp --write-sub --write-auto-sub --sub-lang "en,ko" --skip-download -o "/tmp/%(id)s" "URL"
 
-# Reddit (.json은 WAF 차단됨 — Atom/RSS 피드로 우회; score·댓글수는 OAuth)
-curl -sL -H "User-Agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15" \
-  "https://www.reddit.com/r/{sub}/hot.rss?limit=25"
+# Reddit — .rss (curl_cffi 지문 필요; plain curl은 TLS로 403)
+python3 -c "from curl_cffi import requests as r; print(r.get('https://www.reddit.com/r/{sub}/.rss', impersonate='safari').text[:2000])"
 
-# X/Twitter 타임라인
+# X/Twitter — 개별 트윗(가장 안정적): tweet-result / oEmbed
+python3 -c "from curl_cffi import requests as r; print(r.get('https://cdn.syndication.twimg.com/tweet-result?id={TWEET_ID}&token=a', impersonate='safari').text)"
+# X 프로필 타임라인 (rate-limit 변동 — engine이 재시도) / 키워드: WebSearch(site:x.com {kw})→tweet-result
 curl -sL "https://syndication.twitter.com/srv/timeline-profile/screen-name/{handle}"
 
 # Hacker News
 curl -sL "https://hacker-news.firebaseio.com/v0/topstories.json?limitToFirst=10&orderBy=%22%24key%22"
-
-# YouTube 자막
-yt-dlp --write-sub --write-auto-sub --sub-lang "en,ko" --skip-download -o "/tmp/%(id)s" "URL"
 ```
+
+> 커버리지 회귀 점검: `python3 tests/coverage_battery.py` — 플랫폼별 전수 경로 pass/fail + 썩은 예시 자동 적발.
 
 ## No-Site-Name Rule
 
@@ -333,7 +349,8 @@ yt-dlp --write-sub --write-auto-sub --sub-lang "en,ko" --skip-download -o "/tmp/
 
 | 파일 | 언제 읽는가 |
 |------|-------------|
-| `engine/fetch_chain.py` | 체인 단계 로직·`Attempt`/`FetchResult` schema 확인 |
+| `engine/phase0.py` | Phase 0 공식-API 라우터 (Reddit/X/YouTube 자동 경로). 플랫폼·경로 추가 시. bias_check 면제 파일(R5 sanctioned) |
+| `engine/fetch_chain.py` | 체인 단계 로직·`Attempt`/`FetchResult` schema·`untried_routes`/`must_invoke_playwright_mcp` 실패게이트 |
 | `engine/validators.py` | 4-계층 검증 세부 (Verdict 분류, 챌린지 마커 목록) |
 | `engine/waf_detector.py` | WAF 랭킹 감지 알고리즘, `_LAST_LOAD_ERROR` 처리 |
 | `engine/waf_profiles.yaml` | 프로파일별 detectors·tls_candidates·capabilities_needed |
