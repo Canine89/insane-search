@@ -6,11 +6,10 @@ English | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](READM
 
 **Impossible is nothing. If it's public, insane-search gets in.**
 
-A resilient public-page reader for Codex and Claude Code. No API keys, no proxy setup.
+A resilient public-page reader for Claude Code. No API keys, no proxy setup.
 
 <p>
   <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/platform-Claude_Code-D97757?logo=claude" alt="Claude Code"></a>
-  <img src="https://img.shields.io/badge/platform-Codex-111827" alt="Codex">
   <img src="https://img.shields.io/badge/API_key-not_required-3FB950" alt="No API key">
   <a href="https://github.com/fivetaku/gptaku_plugins"><img src="https://img.shields.io/badge/part_of-gptaku--plugins-6E56CF" alt="part of gptaku-plugins"></a>
   <a href="https://github.com/fivetaku/insane-search/stargazers"><img src="https://img.shields.io/github/stars/fivetaku/insane-search?style=flat&color=F0B72F" alt="stars"></a>
@@ -25,17 +24,6 @@ A resilient public-page reader for Codex and Claude Code. No API keys, no proxy 
 ---
 
 ## ⚡ Install
-
-### Codex
-
-```bash
-codex plugin marketplace add Canine89/insane-search
-codex plugin add insane-search@insane-search
-```
-
-Open a new Codex session after installing so the `insane-search` skill is loaded.
-
-### Claude Code
 
 ```bash
 /plugin marketplace add https://github.com/fivetaku/gptaku_plugins.git

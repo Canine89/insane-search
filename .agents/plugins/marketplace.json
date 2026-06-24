@@ -1,0 +1,20 @@
+{
+  "name": "insane-search",
+  "interface": {
+    "displayName": "Insane Search"
+  },
+  "plugins": [
+    {
+      "name": "insane-search",
+      "source": {
+        "source": "local",
+        "path": "./plugins/insane-search"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

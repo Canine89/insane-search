@@ -1,0 +1,46 @@
+{
+  "name": "insane-search",
+  "version": "0.8.2",
+  "description": "Platform-specific access strategies for AI agents that try public routes for blocked sites without API keys.",
+  "author": {
+    "name": "fivetaku",
+    "url": "https://github.com/fivetaku"
+  },
+  "homepage": "https://github.com/Canine89/insane-search",
+  "repository": "https://github.com/Canine89/insane-search",
+  "license": "MIT",
+  "keywords": [
+    "web-access",
+    "search",
+    "webfetch",
+    "bypass",
+    "jina",
+    "yt-dlp",
+    "twitter",
+    "reddit",
+    "youtube",
+    "naver",
+    "coupang",
+    "linkedin",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Insane Search",
+    "shortDescription": "Public-page fetch fallback for blocked websites.",
+    "longDescription": "Insane Search adds a Codex skill and engine for trying public API, feed, TLS impersonation, and browser fallback routes when ordinary web access is blocked.",
+    "developerName": "fivetaku",
+    "category": "Productivity",
+    "capabilities": [
+      "web-access",
+      "search",
+      "blocked-site-fallback"
+    ],
+    "websiteURL": "https://github.com/Canine89/insane-search",
+    "defaultPrompt": [
+      "Use Insane Search for this blocked URL.",
+      "Summarize this YouTube video with public metadata.",
+      "Read this Reddit thread through public feeds."
+    ]
+  }
+}

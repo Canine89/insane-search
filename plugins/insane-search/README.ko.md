@@ -6,11 +6,10 @@
 
 **포기는 배추 셀 때나 쓰는 말. 공개된 페이지라면, insane-search는 결국 뚫어낸다.**
 
-차단에 강한 공개 페이지 리더 — Codex와 Claude Code용. API 키도, 프록시 설정도 없다.
+차단에 강한 공개 페이지 리더 — Claude Code용. API 키도, 프록시 설정도 없다.
 
 <p>
   <a href="https://docs.anthropic.com/en/docs/claude-code"><img src="https://img.shields.io/badge/platform-Claude_Code-D97757?logo=claude" alt="Claude Code"></a>
-  <img src="https://img.shields.io/badge/platform-Codex-111827" alt="Codex">
   <img src="https://img.shields.io/badge/API_key-not_required-3FB950" alt="No API key">
   <a href="https://github.com/fivetaku/gptaku_plugins"><img src="https://img.shields.io/badge/part_of-gptaku--plugins-6E56CF" alt="part of gptaku-plugins"></a>
   <a href="https://github.com/fivetaku/insane-search/stargazers"><img src="https://img.shields.io/github/stars/fivetaku/insane-search?style=flat&color=F0B72F" alt="stars"></a>
@@ -25,17 +24,6 @@
 ---
 
 ## ⚡ 설치
-
-### Codex
-
-```bash
-codex plugin marketplace add Canine89/insane-search
-codex plugin add insane-search@insane-search
-```
-
-새 Codex 세션을 열면 `insane-search` skill이 로드됩니다.
-
-### Claude Code
 
 ```bash
 /plugin marketplace add https://github.com/fivetaku/gptaku_plugins.git
